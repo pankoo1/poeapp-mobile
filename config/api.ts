@@ -31,7 +31,18 @@ export const API_ENDPOINTS = {
   muebles_reposicion: `${API_URL}/muebles/reposicion`,
   
   // Tareas
-  tareas: `${API_URL}/tareas`,
+  tareas: {
+    base: `${API_URL}/tareas`,
+    reponedor: `${API_URL}/tareas/reponedor`,
+    iniciar: `${API_URL}/tareas/:id/iniciar`,
+    completar: `${API_URL}/tareas/:id/completar`,
+    reiniciar: `${API_URL}/tareas/:id/reiniciar`,
+  },
+  
+  // Rutas optimizadas
+  rutas: {
+    optimizada: `${API_URL}/rutas/optimizada`,
+  },
   
   // Reportes y dashboard
   reportes: `${API_URL}/reportes`,
