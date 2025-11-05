@@ -1,12 +1,17 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { createDrawerNavigator } from '@react-navigation/drawer';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { CustomDrawerContent } from '@/components/drawer/CustomDrawerContent';
+import { CustomHeader } from '@/components/drawer/CustomHeader';
 
-export default function TabLayout() {
+const Drawer = createDrawerNavigator();
+
+function TabsNavigator() {
   const colorScheme = useColorScheme();
 
   return (
@@ -31,5 +36,30 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+  );
+}
+
+export default function TabLayout() {
+  return (
+    <Drawer.Navigator
+      drawerContent={(props) => <CustomDrawerContent {...props} />}
+      screenOptions={{
+        drawerType: 'slide',
+        drawerStyle: {
+          width: 300,
+        },
+        headerShown: false,
+        swipeEnabled: true,
+        swipeEdgeWidth: 50,
+      }}
+    >
+      <Drawer.Screen
+        name="tabs"
+        component={TabsNavigator}
+        options={{
+          headerShown: false,
+        }}
+      />
+    </Drawer.Navigator>
   );
 }

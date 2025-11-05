@@ -18,16 +18,17 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { usePublicRoute } from '@/hooks/useProtectedRoute';
 import type { AuthError } from '@/types/auth.types';
 import { loginStyles as styles } from './login.styles';
-import { gradients } from '@/constants/design';
 
 export default function LoginScreen() {
   const [correo, setCorreo] = useState('');
   const [contraseña, setContraseña] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login, error, clearError, user } = useAuth();
+  const { gradients } = useTheme();
   
   // Redirigir si ya está autenticado
   usePublicRoute();
@@ -153,7 +154,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <LinearGradient
-        colors={gradients.background}
+        colors={gradients.background as any}
         style={styles.gradient}
       >
         <ScrollView
@@ -164,7 +165,7 @@ export default function LoginScreen() {
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <LinearGradient
-                colors={gradients.logo}
+                colors={gradients.logo as any}
                 style={styles.logoGradient}
               >
                 <Text style={styles.logoText}>POE</Text>
@@ -217,7 +218,7 @@ export default function LoginScreen() {
               disabled={isLoading}
             >
               <LinearGradient
-                colors={gradients.primaryButton}
+                colors={gradients.primaryButton as any}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.buttonGradient}

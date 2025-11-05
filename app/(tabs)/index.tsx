@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet, Button } from 'react-native';
+import { Platform, StyleSheet, Button, View } from 'react-native';
 
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
@@ -8,6 +8,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Link, router } from 'expo-router';
 import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
+import { CustomHeader } from '@/components/drawer/CustomHeader';
 
 export default function HomeScreen() {
   // Proteger esta ruta
@@ -29,14 +30,16 @@ export default function HomeScreen() {
   }
 
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
+    <View style={{ flex: 1 }}>
+      <CustomHeader title="Inicio" />
+      <ParallaxScrollView
+        headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
+        headerImage={
+          <Image
+            source={require('@/assets/images/partial-react-logo.png')}
+            style={styles.reactLogo}
+          />
+        }>
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Bienvenido {user?.nombre}!</ThemedText>
         <HelloWave />
@@ -104,6 +107,7 @@ export default function HomeScreen() {
         </ThemedText>
       </ThemedView>
     </ParallaxScrollView>
+    </View>
   );
 }
 
