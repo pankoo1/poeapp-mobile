@@ -17,11 +17,12 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePublicRoute } from '@/hooks/useProtectedRoute';
 import type { AuthError } from '@/types/auth.types';
-import { loginStyles as styles } from './login.styles';
+import { loginStyles as styles } from '@/constants/loginStyles';
 
 export default function LoginScreen() {
   const [correo, setCorreo] = useState('');
@@ -184,31 +185,37 @@ export default function LoginScreen() {
             {/* Campo de correo */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Correo Electrónico</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="ejemplo@empresa.com"
-                value={correo}
-                onChangeText={setCorreo}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isLoading}
-              />
+              <View style={styles.inputContainer}>
+                <IconSymbol name="envelope.fill" size={20} color="#666" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.inputWithIcon}
+                  placeholder="ejemplo@empresa.com"
+                  value={correo}
+                  onChangeText={setCorreo}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!isLoading}
+                />
+              </View>
             </View>
 
             {/* Campo de contraseña */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Contraseña</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                value={contraseña}
-                onChangeText={setContraseña}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isLoading}
-              />
+              <View style={styles.inputContainer}>
+                <IconSymbol name="lock.fill" size={20} color="#666" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.inputWithIcon}
+                  placeholder="••••••••"
+                  value={contraseña}
+                  onChangeText={setContraseña}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!isLoading}
+                />
+              </View>
             </View>
 
             {/* Botón de login */}

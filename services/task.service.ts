@@ -32,7 +32,7 @@ export class TaskService {
   static async startTask(taskId: number): Promise<StartTaskResponse> {
     try {
       const endpoint = API_ENDPOINTS.tareas.iniciar.replace(':id', taskId.toString());
-      const response = await HttpClient.post<StartTaskResponse>(endpoint);
+      const response = await HttpClient.put<StartTaskResponse>(endpoint);
       return response.data;
     } catch (error: any) {
       console.error('Error starting task:', error);
@@ -46,7 +46,7 @@ export class TaskService {
   static async completeTask(taskId: number): Promise<CompleteTaskResponse> {
     try {
       const endpoint = API_ENDPOINTS.tareas.completar.replace(':id', taskId.toString());
-      const response = await HttpClient.post<CompleteTaskResponse>(endpoint);
+      const response = await HttpClient.put<CompleteTaskResponse>(endpoint);
       return response.data;
     } catch (error: any) {
       console.error('Error completing task:', error);
@@ -60,7 +60,7 @@ export class TaskService {
   static async restartTask(taskId: number): Promise<void> {
     try {
       const endpoint = API_ENDPOINTS.tareas.reiniciar.replace(':id', taskId.toString());
-      await HttpClient.post(endpoint);
+      await HttpClient.put(endpoint);
     } catch (error: any) {
       console.error('Error restarting task:', error);
       throw new Error(error.message || 'No se pudo reiniciar la tarea');
@@ -75,12 +75,26 @@ export class TaskService {
     algorithm: string = 'vecino_mas_cercano'
   ): Promise<OptimizedRoute> {
     try {
-      const endpoint = `${API_ENDPOINTS.rutas.optimizada}/${taskId}?algoritmo=${algorithm}`;
+      const endpoint = `${API_ENDPOINTS.tareas.base}/${taskId}/ruta-optimizada?algoritmo=${algorithm}`;
       const response = await HttpClient.get<OptimizedRoute>(endpoint);
       return response.data;
     } catch (error: any) {
       console.error('Error fetching optimized route:', error);
       throw new Error(error.message || 'No se pudo obtener la ruta optimizada');
+    }
+  }
+
+  /**
+   * Resetear todas las tareas a estado pendiente (solo para testing)
+   */
+  static async resetAllTasks(): Promise<{ mensaje: string; tareas_reseteadas: number }> {
+    try {
+      const endpoint = `${API_ENDPOINTS.tareas.base}/resetear-todas`;
+      const response = await HttpClient.put<{ mensaje: string; tareas_reseteadas: number }>(endpoint);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error resetting tasks:', error);
+      throw new Error(error.message || 'No se pudieron resetear las tareas');
     }
   }
 }

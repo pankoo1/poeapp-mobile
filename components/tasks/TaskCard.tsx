@@ -16,7 +16,7 @@ const getStatusColor = (status: TaskStatus): string => {
   switch (status) {
     case 'pendiente':
       return '#3b82f6'; // blue
-    case 'en_progreso':
+    case 'en progreso':
       return '#f59e0b'; // amber
     case 'completada':
       return '#10b981'; // green
@@ -31,7 +31,7 @@ const getStatusLabel = (status: TaskStatus): string => {
   switch (status) {
     case 'pendiente':
       return 'Pendiente';
-    case 'en_progreso':
+    case 'en progreso':
       return 'En Progreso';
     case 'completada':
       return 'Completada';
@@ -46,7 +46,7 @@ const getStatusIcon = (status: TaskStatus): string => {
   switch (status) {
     case 'pendiente':
       return 'clock.fill';
-    case 'en_progreso':
+    case 'en progreso':
       return 'arrow.clockwise';
     case 'completada':
       return 'checkmark.circle.fill';
@@ -264,7 +264,7 @@ export const TaskCardComponent: React.FC<TaskCardProps> = ({
               </TouchableOpacity>
             )}
 
-            {task.estado === 'en_progreso' && (
+            {task.estado === 'en progreso' && (
               <>
                 {onComplete && (
                   <TouchableOpacity

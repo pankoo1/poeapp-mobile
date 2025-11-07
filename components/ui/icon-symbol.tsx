@@ -20,6 +20,8 @@ const MAPPING = {
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
   'chevron.left': 'chevron-left',
+  'chevron.up': 'keyboard-arrow-up',
+  'chevron.down': 'keyboard-arrow-down',
   
   // Menú hamburguesa
   'line.3.horizontal': 'menu',
@@ -44,6 +46,33 @@ const MAPPING = {
   'battery.100': 'battery-full',
   'moon.stars.fill': 'bedtime',
   'info.circle.fill': 'info',
+  
+  // Tareas y métricas
+  'checklist': 'checklist',
+  'list.bullet': 'list',
+  'arrow.clockwise': 'refresh',
+  'arrow.counterclockwise': 'history',
+  'clock.fill': 'schedule',
+  'calendar': 'event',
+  'map.fill': 'map',
+  'shippingbox.fill': 'inventory',
+  'location.fill': 'place',
+  'number': 'tag',
+  
+  // Acciones de tareas
+  'play.fill': 'play-arrow',
+  'xmark.circle.fill': 'cancel',
+  
+  // Filtros y ordenamiento
+  'line.3.horizontal.decrease.circle': 'filter-list',
+  'arrow.up': 'arrow-upward',
+  'arrow.down': 'arrow-downward',
+  
+  // Login
+  'lock.fill': 'lock',
+  
+  // Otros
+  'person.badge.shield.checkmark.fill': 'verified-user',
 } as IconMapping;
 
 /**

@@ -46,7 +46,7 @@ export const TaskFiltersComponent: React.FC<TaskFiltersProps> = ({ filters, onFi
   const statusOptions: Array<{ label: string; value: TaskStatus | 'todos' }> = [
     { label: 'Todas', value: 'todos' },
     { label: 'Pendientes', value: 'pendiente' },
-    { label: 'En Progreso', value: 'en_progreso' },
+    { label: 'En Progreso', value: 'en progreso' },
     { label: 'Completadas', value: 'completada' },
   ];
 

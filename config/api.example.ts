@@ -32,7 +32,7 @@ export const API_ENDPOINTS = {
   // Productos y mapa
   productos: `${API_URL}/productos`,
   mapa: `${API_URL}/mapa`,
-  mapa_reposicion: `${API_URL}/mapa/reposicion`,
+  mapa_reposicion: `${API_URL}/mapa/reponedor/vista`,
   muebles_reposicion: `${API_URL}/muebles/reposicion`,
   
   // Tareas

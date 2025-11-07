@@ -26,6 +26,8 @@ interface ApiResponse<T = any> {
  * Cliente HTTP con soporte para autenticación
  */
 export class HttpClient {
+  private static isHandlingUnauthorized = false;
+
   /**
    * Realizar petición HTTP con manejo automático de autenticación
    */
@@ -66,7 +68,9 @@ export class HttpClient {
 
       // Manejar error 401 (no autorizado / sesión expirada)
       if (response.status === 401) {
-        await this.handleUnauthorized();
+        if (!this.isHandlingUnauthorized) {
+          await this.handleUnauthorized();
+        }
         throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
       }
 
@@ -95,6 +99,10 @@ export class HttpClient {
    * Manejar error de sesión no autorizada
    */
   private static async handleUnauthorized() {
+    if (this.isHandlingUnauthorized) return;
+    
+    this.isHandlingUnauthorized = true;
+    
     try {
       // Limpiar sesión local
       await AuthService.logout();
@@ -103,6 +111,11 @@ export class HttpClient {
       router.replace('/login');
     } catch (error) {
       console.error('Error al manejar sesión no autorizada:', error);
+    } finally {
+      // Reset flag después de un pequeño delay
+      setTimeout(() => {
+        this.isHandlingUnauthorized = false;
+      }, 1000);
     }
   }
 

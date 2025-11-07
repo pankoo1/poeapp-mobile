@@ -89,6 +89,23 @@ export const loginStyles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     color: colors.textPrimary,
   },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.inputBackground,
+    borderWidth: borders.width.medium,
+    borderColor: colors.border,
+    borderRadius: borders.radius.md,
+  },
+  inputIcon: {
+    marginLeft: spacing.md,
+  },
+  inputWithIcon: {
+    flex: 1,
+    padding: spacing.base,
+    fontSize: typography.fontSize.base,
+    color: colors.textPrimary,
+  },
   button: {
     marginTop: spacing.sm,
     marginBottom: spacing.xl,

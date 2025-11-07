@@ -23,7 +23,7 @@ export interface Task {
   productos: TaskProduct[];
 }
 
-export type TaskStatus = 'pendiente' | 'en_progreso' | 'completada' | 'cancelada';
+export type TaskStatus = 'pendiente' | 'en progreso' | 'completada' | 'cancelada' | 'sin asignar';
 
 export interface TaskFilters {
   status: TaskStatus | 'todos';
@@ -53,10 +53,12 @@ export interface OptimizedRoute {
   reponedor: string;
   fecha_creacion: string;
   puntos_reposicion: RoutePoint[];
-  coordenadas_ruta: Coordinate[];
+  coordenadas_ruta?: Coordinate[]; // Estructura antigua, opcional
+  coordenadas_ruta_global?: Coordinate[]; // Nueva estructura del backend
   algoritmo_utilizado: Algorithm;
   distancia_total: number;
   tiempo_estimado_minutos: number;
+  tiempo_estimado_total?: number; // Campo alternativo
   estado_tarea: string;
 }
 
