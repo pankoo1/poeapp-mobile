@@ -7,6 +7,12 @@ export interface ReponedorAsignado {
   estado: string;
 }
 
+export interface ReponedorCreate {
+  nombre: string;
+  correo: string;
+  contraseña: string;
+}
+
 export const supervisorService = {
   // Obtener lista de reponedores asignados al supervisor
   async obtenerReponedoresAsignados(): Promise<ReponedorAsignado[]> {
@@ -27,12 +33,22 @@ export const supervisorService = {
     );
     return response.data;
   },
+
+  // Registrar un nuevo reponedor
+  async registrarReponedor(data: ReponedorCreate): Promise<ReponedorAsignado> {
+    const response = await apiClient.getInstance().post(
+      '/supervisor/reponedores',
+      data
+    );
+    return response.data.usuario;
+  },
 };
 
 export const {
   obtenerReponedoresAsignados,
   obtenerReponedoresDisponibles,
   asignarReponedor,
+  registrarReponedor,
 } = supervisorService;
 
 export default supervisorService;

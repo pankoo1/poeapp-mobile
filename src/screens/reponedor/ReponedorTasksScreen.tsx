@@ -115,7 +115,7 @@ export const ReponedorTasksScreen: React.FC = () => {
     }
   };
 
-  // Ver ruta - Navega a la pantalla de ruta
+  // Ver ruta - Navega a la pantalla de ruta optimizada
   const handleViewRoute = (taskId: number) => {
     const task = tasks.find((t) => t.id_tarea === taskId);
     if (!task) {
@@ -123,9 +123,9 @@ export const ReponedorTasksScreen: React.FC = () => {
       return;
     }
 
-    // Verificar que la tarea esté en progreso
+    // Verificar que la tarea esté en progreso o completada
     const estado = task.estado.toLowerCase();
-    if (estado !== 'en progreso' && estado !== 'en_progreso') {
+    if (estado !== 'en progreso' && estado !== 'en_progreso' && estado !== 'completada') {
       Alert.alert(
         'Información',
         'Debes iniciar la tarea primero para ver la ruta',
@@ -134,8 +134,8 @@ export const ReponedorTasksScreen: React.FC = () => {
       return;
     }
 
-    // Navegar a la pantalla de ruta
-    navigation.navigate('Ruta' as never);
+    // Navegar a la nueva pantalla de visualización de ruta
+    (navigation as any).navigate('RutaVisualizacion', { idTarea: taskId });
   };
 
   // Manejar cambio de filtros

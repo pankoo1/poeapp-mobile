@@ -13,12 +13,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { MapGrid } from '../../components/map';
 import { obtenerMapaSupervisor } from '../../api/mapaService';
 import { TaskCreationSheet } from '../../components/supervisor/TaskCreationSheet';
-import type { MapaResponse, PuntoReposicion } from '../../types';
+import type { MapaResponse, PuntoReposicion, UbicacionFisica } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface SelectedPoint {
   punto: PuntoReposicion;
   cantidad: number;
+}
+
+interface SelectedMueble {
+  ubicacion: UbicacionFisica;
+  puntosDisponibles: PuntoReposicion[];
 }
 
 export const SupervisorMapScreen: React.FC = () => {
@@ -27,6 +32,7 @@ export const SupervisorMapScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedPoints, setSelectedPoints] = useState<SelectedPoint[]>([]);
+  const [selectedMuebles, setSelectedMuebles] = useState<SelectedMueble[]>([]);
   const [sheetVisible, setSheetVisible] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
 
@@ -68,51 +74,94 @@ export const SupervisorMapScreen: React.FC = () => {
       modoSeleccion: selectionMode
     });
 
-    // Si no tiene producto, no hacer nada
-    if (!punto.producto) {
-      console.log('⚠️ Punto sin producto, ignorando');
+    // Buscar el mueble en esta ubicación
+    const ubicacion = warehouseMap?.ubicaciones.find(u => u.x === x && u.y === y);
+    
+    if (!ubicacion || !ubicacion.mueble) {
+      console.log('⚠️ No hay mueble en esta ubicación');
       return;
     }
 
-    // Si está en modo selección, agregar/quitar punto
+    // Obtener todos los puntos con producto del mueble
+    const puntosConProducto = ubicacion.mueble.puntos_reposicion?.filter(p => p.producto) || [];
+    
+    if (puntosConProducto.length === 0) {
+      console.log('⚠️ El mueble no tiene productos asignados');
+      Alert.alert('Aviso', 'Este mueble no tiene productos asignados');
+      return;
+    }
+
+    // Si está en modo selección, toggle el mueble completo
     if (selectionMode) {
-      console.log('✅ Modo selección activo, toggleando punto');
-      togglePointSelection(punto);
+      console.log('✅ Modo selección activo, toggleando mueble');
+      toggleMuebleSelection(ubicacion, puntosConProducto);
       return;
     }
 
-    // Si no está en modo selección, mostrar información
+    // Si no está en modo selección, mostrar información del mueble
+    // Agrupar productos únicos
+    const productosUnicos = new Map<string, number>();
+    puntosConProducto.forEach(p => {
+      if (p.producto?.nombre) {
+        productosUnicos.set(
+          p.producto.nombre, 
+          (productosUnicos.get(p.producto.nombre) || 0) + 1
+        );
+      }
+    });
+    
+    const productosInfo = Array.from(productosUnicos.entries())
+      .map(([nombre, cantidad]) => `• ${nombre} (${cantidad} ubicaciones)`)
+      .join('\n');
+    
     Alert.alert(
-      `Punto de Reposición #${punto.id_punto}`,
-      `Ubicación: (${x}, ${y})\nEstantería: ${punto.estanteria}\nNivel: ${punto.nivel}\n\nProducto:\n${punto.producto.nombre}`,
+      `Mueble en (${x}, ${y})`,
+      `Productos disponibles:\n\n${productosInfo}`,
       [
         { text: 'Cerrar', style: 'cancel' },
         {
           text: 'Seleccionar para Tarea',
           onPress: () => {
             setSelectionMode(true);
-            togglePointSelection(punto);
+            toggleMuebleSelection(ubicacion, puntosConProducto);
           },
         },
       ]
     );
   };
 
-  const togglePointSelection = (punto: PuntoReposicion) => {
-    console.log('🔄 Toggle selección:', {
-      id: punto.id_punto,
-      yaSeleccionado: selectedPoints.some(sp => sp.punto.id_punto === punto.id_punto)
+  const toggleMuebleSelection = (ubicacion: UbicacionFisica, puntosConProducto: PuntoReposicion[]) => {
+    const muebleKey = `${ubicacion.x},${ubicacion.y}`;
+    console.log('🔄 Toggle selección de mueble:', {
+      ubicacion: muebleKey,
+      productosDisponibles: puntosConProducto.length
     });
 
-    const isSelected = selectedPoints.some(sp => sp.punto.id_punto === punto.id_punto);
+    const isSelected = selectedMuebles.some(m => `${m.ubicacion.x},${m.ubicacion.y}` === muebleKey);
     
     if (isSelected) {
-      setSelectedPoints(prev => prev.filter(sp => sp.punto.id_punto !== punto.id_punto));
-      console.log('➖ Punto removido de selección');
+      // Remover el mueble y todos sus puntos
+      setSelectedMuebles(prev => prev.filter(m => `${m.ubicacion.x},${m.ubicacion.y}` !== muebleKey));
+      setSelectedPoints(prev => prev.filter(sp => 
+        !puntosConProducto.some(p => p.id_punto === sp.punto.id_punto)
+      ));
+      console.log('➖ Mueble removido de selección');
     } else {
-      setSelectedPoints(prev => [...prev, { punto, cantidad: 1 }]);
-      console.log('➕ Punto agregado a selección');
+      // Agregar el mueble con todos sus puntos (cantidad inicial = 0, se configurará en el sheet)
+      setSelectedMuebles(prev => [...prev, { ubicacion, puntosDisponibles: puntosConProducto }]);
+      const nuevosPuntos = puntosConProducto.map(punto => ({ 
+        punto, 
+        cantidad: 0,
+        ubicacion: { x: ubicacion.x, y: ubicacion.y }
+      }));
+      setSelectedPoints(prev => [...prev, ...nuevosPuntos]);
+      console.log('➕ Mueble agregado a selección');
     }
+  };
+
+  const togglePointSelection = (punto: PuntoReposicion) => {
+    // Esta función ya no se usa con el nuevo flujo
+    console.log('⚠️ togglePointSelection llamado (deprecated)');
   };
 
   const handleUpdateQuantity = (pointId: number, quantity: number) => {
@@ -129,6 +178,7 @@ export const SupervisorMapScreen: React.FC = () => {
 
   const handleTaskCreated = () => {
     setSelectedPoints([]);
+    setSelectedMuebles([]);
     setSelectionMode(false);
     loadMap(); // Recargar mapa
   };
@@ -136,15 +186,16 @@ export const SupervisorMapScreen: React.FC = () => {
   const toggleSelectionMode = () => {
     console.log('🔀 Toggle modo selección:', {
       estadoActual: selectionMode,
+      mueblesSeleccionados: selectedMuebles.length,
       puntosSeleccionados: selectedPoints.length
     });
 
     if (selectionMode) {
       // Saliendo del modo selección
-      if (selectedPoints.length > 0) {
+      if (selectedMuebles.length > 0 || selectedPoints.length > 0) {
         Alert.alert(
           'Confirmar',
-          '¿Deseas cancelar la selección de puntos?',
+          '¿Deseas cancelar la selección de muebles?',
           [
             { text: 'No', style: 'cancel' },
             {
@@ -152,8 +203,9 @@ export const SupervisorMapScreen: React.FC = () => {
               style: 'destructive',
               onPress: () => {
                 setSelectedPoints([]);
+                setSelectedMuebles([]);
                 setSelectionMode(false);
-                console.log('❌ Modo selección desactivado, puntos limpiados');
+                console.log('❌ Modo selección desactivado, muebles limpiados');
               },
             },
           ]
@@ -171,7 +223,7 @@ export const SupervisorMapScreen: React.FC = () => {
 
   const openTaskCreationSheet = () => {
     if (selectedPoints.length === 0) {
-      Alert.alert('Aviso', 'Debes seleccionar al menos un punto de reposición');
+      Alert.alert('Aviso', 'Debes seleccionar al menos un mueble con productos');
       return;
     }
     setSheetVisible(true);
@@ -199,7 +251,7 @@ export const SupervisorMapScreen: React.FC = () => {
             <Text style={styles.title}>Mapa del Almacén</Text>
             {selectionMode && (
               <Text style={styles.selectionHint}>
-                {selectedPoints.length} punto(s) seleccionado(s)
+                {selectedMuebles.length} mueble(s) seleccionado(s) • {selectedPoints.length} producto(s)
               </Text>
             )}
           </View>
@@ -227,6 +279,7 @@ export const SupervisorMapScreen: React.FC = () => {
               ubicaciones={warehouseMap?.ubicaciones || []}
               onPointPress={handlePointPress}
               selectedPoints={selectedPoints.map(sp => sp.punto.id_punto)}
+              selectedMuebles={selectedMuebles.map(m => `${m.ubicacion.x},${m.ubicacion.y}`)}
             />
           </View>
         ) : (
@@ -240,53 +293,16 @@ export const SupervisorMapScreen: React.FC = () => {
         )}
 
         {/* Botón flotante para crear tarea */}
-        {selectionMode && selectedPoints.length > 0 && (
+        {selectionMode && selectedMuebles.length > 0 && (
           <TouchableOpacity
             style={styles.floatingButton}
             onPress={openTaskCreationSheet}
           >
             <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
             <Text style={styles.floatingButtonText}>
-              Crear Tarea ({selectedPoints.length})
+              Crear Tarea ({selectedMuebles.length} mueble{selectedMuebles.length > 1 ? 's' : ''})
             </Text>
           </TouchableOpacity>
-        )}
-
-        {/* Leyenda de colores */}
-        {hasWarehouseData && (
-          <View style={styles.legendCard}>
-            <Text style={styles.legendTitle}>Leyenda del Mapa</Text>
-            <View style={styles.legendGrid}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendBox, { backgroundColor: '#F3F4F6' }]} />
-                <Text style={styles.legendText}>Sin configurar</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendBox, { backgroundColor: '#E0E0E0' }]} />
-                <Text style={styles.legendText}>Caminable</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendBox, { backgroundColor: '#757575' }]} />
-                <Text style={styles.legendText}>Obstáculo</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendBox, { backgroundColor: '#8B5CF6' }]} />
-                <Text style={styles.legendText}>Mueble</Text>
-              </View>
-              {puntosConProducto > 0 && (
-                <>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendBox, { backgroundColor: '#3B82F6' }]} />
-                    <Text style={styles.legendText}>Punto con producto</Text>
-                  </View>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendBox, { backgroundColor: '#10B981' }]} />
-                    <Text style={styles.legendText}>Punto seleccionado</Text>
-                  </View>
-                </>
-              )}
-            </View>
-          </View>
         )}
 
         {/* Consejo */}
@@ -299,7 +315,7 @@ export const SupervisorMapScreen: React.FC = () => {
           </View>
           <Text style={styles.tipText}>
             {selectionMode
-              ? 'Toca los puntos azules para agregarlos a la tarea. Cuando termines, presiona "Crear Tarea".'
+              ? 'Toca los muebles (morados) para agregarlos. Luego podrás seleccionar qué productos reponer y sus cantidades.'
               : 'Toca el botón + para activar el modo selección y crear tareas de reposición.'}
           </Text>
         </View>
@@ -432,46 +448,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
-  },
-  legendCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  legendTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  legendGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    minWidth: '45%',
-  },
-  legendBox: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    borderWidth: 0.5,
-    borderColor: '#9CA3AF',
-  },
-  legendText: {
-    fontSize: 13,
-    color: '#6B7280',
   },
   tipCard: {
     backgroundColor: '#EFF6FF',

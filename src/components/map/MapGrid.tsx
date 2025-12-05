@@ -12,6 +12,8 @@ interface MapGridProps {
   ruta?: Array<{ x: number; y: number }>;
   onPointPress?: (punto: PuntoReposicion, x: number, y: number) => void;
   selectedPoints?: number[]; // IDs de puntos seleccionados
+  selectedMuebles?: string[]; // Keys de muebles seleccionados "x,y"
+  showIndividualPoints?: boolean; // Si false, solo muestra indicador por mueble
 }
 
 const CELL_SIZE = 30;
@@ -22,7 +24,9 @@ export const MapGrid: React.FC<MapGridProps> = ({
   ubicaciones = [],
   ruta = [],
   onPointPress,
-  selectedPoints = []
+  selectedPoints = [],
+  selectedMuebles = [],
+  showIndividualPoints = false
 }) => {
   const mapWidth = width * CELL_SIZE;
   const mapHeight = height * CELL_SIZE;
@@ -87,13 +91,33 @@ export const MapGrid: React.FC<MapGridProps> = ({
     }
   });
 
-  // Debug: Log para ver cuántos puntos se encontraron
-  console.log('🔍 MapGrid - Puntos con productos encontrados:', {
-    total: puntosConUbicacion.length,
-    muestras: puntosConUbicacion.slice(0, 3).map(p => ({
-      id: p.punto.id_punto,
-      pos: `(${p.x},${p.y})`,
-      producto: p.punto.producto?.nombre
+  // Agrupar puntos por ubicación (x,y) para manejar múltiples puntos en la misma celda
+  const mueblesPorUbicacion = new Map<string, { x: number; y: number; puntos: PuntoReposicion[]; productos: string[] }>();
+  
+  ubicaciones.forEach((ub) => {
+    if (ub.mueble && ub.mueble.puntos_reposicion) {
+      const puntosConProducto = ub.mueble.puntos_reposicion.filter(p => p.producto);
+      if (puntosConProducto.length > 0) {
+        const key = `${ub.x},${ub.y}`;
+        const productosUnicos = [...new Set(puntosConProducto.map(p => p.producto?.nombre).filter(Boolean))] as string[];
+        mueblesPorUbicacion.set(key, {
+          x: ub.x,
+          y: ub.y,
+          puntos: puntosConProducto,
+          productos: productosUnicos
+        });
+      }
+    }
+  });
+
+  // Debug: Log simplificado
+  console.log('🔍 MapGrid - Muebles con productos:', {
+    totalMuebles: mueblesPorUbicacion.size,
+    totalPuntos: puntosConUbicacion.length,
+    muestra: Array.from(mueblesPorUbicacion.entries()).slice(0, 2).map(([key, data]) => ({
+      ubicacion: key,
+      productos: data.productos,
+      cantidad: data.puntos.length
     }))
   });
 
@@ -112,19 +136,26 @@ export const MapGrid: React.FC<MapGridProps> = ({
             {/* Dibujar cuadrícula fila por fila */}
             {Array.from({ length: height }).map((_, y) => (
               <View key={`row-${y}`} style={styles.row}>
-                {Array.from({ length: width }).map((_, x) => (
-                  <View
-                    key={`cell-${x}-${y}`}
-                    style={[
-                      styles.cell,
-                      {
-                        width: CELL_SIZE,
-                        height: CELL_SIZE,
-                        backgroundColor: getBackgroundColor(x, y),
-                      },
-                    ]}
-                  />
-                ))}
+                {Array.from({ length: width }).map((_, x) => {
+                  const muebleKey = `${x},${y}`;
+                  const isMuebleSelected = selectedMuebles.includes(muebleKey);
+                  
+                  return (
+                    <View
+                      key={`cell-${x}-${y}`}
+                      style={[
+                        styles.cell,
+                        {
+                          width: CELL_SIZE,
+                          height: CELL_SIZE,
+                          backgroundColor: getBackgroundColor(x, y),
+                          borderWidth: isMuebleSelected ? 3 : 0.5,
+                          borderColor: isMuebleSelected ? '#10B981' : '#E5E7EB',
+                        },
+                      ]}
+                    />
+                  );
+                })}
               </View>
             ))}
 
@@ -145,8 +176,8 @@ export const MapGrid: React.FC<MapGridProps> = ({
               </Svg>
             )}
 
-            {/* Capa superpuesta para puntos de reposición */}
-            {puntosConUbicacion.length > 0 && (
+            {/* Capa superpuesta para indicadores de muebles con productos */}
+            {mueblesPorUbicacion.size > 0 && (
               <View
                 style={{
                   position: 'absolute',
@@ -156,30 +187,36 @@ export const MapGrid: React.FC<MapGridProps> = ({
                   height: mapHeight,
                 }}
               >
-                {puntosConUbicacion.map((item, index) => {
-                  const left = item.x * CELL_SIZE + CELL_SIZE / 2 - CELL_SIZE / 3;
-                  const top = item.y * CELL_SIZE + CELL_SIZE / 2 - CELL_SIZE / 3;
-                  const isSelected = selectedPoints.includes(item.punto.id_punto);
+                {Array.from(mueblesPorUbicacion.entries()).map(([key, data]) => {
+                  const isMuebleSelected = selectedMuebles.includes(key);
+                  
+                  // Posición centrada en la celda del mueble
+                  const left = data.x * CELL_SIZE + CELL_SIZE / 2 - 10;
+                  const top = data.y * CELL_SIZE + CELL_SIZE / 2 - 10;
                   
                   return (
                     <TouchableOpacity
-                      key={`point-${item.punto.id_punto}-${index}`}
+                      key={`mueble-${key}`}
                       style={[
-                        styles.point,
+                        styles.muebleIndicator,
                         {
                           left,
                           top,
-                          width: (CELL_SIZE * 2) / 3,
-                          height: (CELL_SIZE * 2) / 3,
-                          borderRadius: CELL_SIZE / 3,
-                          backgroundColor: isSelected ? '#10B981' : '#3B82F6',
-                          borderWidth: isSelected ? 3 : 0,
-                          borderColor: isSelected ? '#FFFFFF' : 'transparent',
+                          backgroundColor: isMuebleSelected ? '#10B981' : '#3B82F6',
+                          borderWidth: isMuebleSelected ? 3 : 2,
+                          borderColor: '#FFFFFF',
                         },
                       ]}
-                      onPress={() => onPointPress?.(item.punto, item.x, item.y)}
+                      onPress={() => {
+                        // Llamar con el primer punto del mueble
+                        if (data.puntos.length > 0) {
+                          onPointPress?.(data.puntos[0], data.x, data.y);
+                        }
+                      }}
                     >
-                      <Text style={styles.pointText}>{item.punto.id_punto}</Text>
+                      <Text style={styles.muebleIndicatorText}>
+                        {data.puntos.length}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -188,37 +225,6 @@ export const MapGrid: React.FC<MapGridProps> = ({
           </View>
         </ScrollView>
       </ScrollView>
-
-      <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: '#E5E7EB' }]} />
-          <Text style={styles.legendText}>Pasillo</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: '#374151' }]} />
-          <Text style={styles.legendText}>Muro</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: '#8B5CF6' }]} />
-          <Text style={styles.legendText}>Mueble</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: '#22c55e' }]} />
-          <Text style={styles.legendText}>Salida</Text>
-        </View>
-        {puntosConUbicacion.length > 0 && (
-          <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: '#3B82F6' }]} />
-            <Text style={styles.legendText}>Producto</Text>
-          </View>
-        )}
-        {ruta && ruta.length > 1 && (
-          <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: '#2563eb' }]} />
-            <Text style={styles.legendText}>Ruta optimizada</Text>
-          </View>
-        )}
-      </View>
     </View>
   );
 };
@@ -265,6 +271,24 @@ const styles = StyleSheet.create({
   pointText: {
     color: '#FFFFFF',
     fontSize: 10,
+    fontWeight: 'bold',
+  },
+  muebleIndicator: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  muebleIndicatorText: {
+    color: '#FFFFFF',
+    fontSize: 11,
     fontWeight: 'bold',
   },
   legend: {

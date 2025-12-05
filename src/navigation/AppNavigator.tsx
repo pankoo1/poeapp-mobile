@@ -9,8 +9,14 @@ import { useAuth } from '../contexts/AuthContext';
 // Screens
 import LoginScreen from '../screens/auth/LoginScreen';
 import PerfilScreen from '../screens/shared/PerfilScreen';
-import { ReponedorTasksScreen, ReponedorDashboardScreen, ReponedorRutaScreen, ReponedorMapScreen } from '../screens/reponedor';
-import { SupervisorDashboardScreen, SupervisorMapScreen, SupervisorTasksScreen } from '../screens/supervisor';
+import { 
+  ReponedorTasksScreen, 
+  ReponedorDashboardScreen, 
+  ReponedorRutaScreen, 
+  ReponedorMapScreen,
+  RutaVisualizacionScreen 
+} from '../screens/reponedor';
+import { SupervisorDashboardScreen, SupervisorMapScreen, SupervisorTasksScreen, SupervisorReponedoresScreen } from '../screens/supervisor';
 
 // Tipos para la navegación
 export type RootStackParamList = {
@@ -22,6 +28,7 @@ export type SupervisorTabParamList = {
   Dashboard: undefined;
   Tareas: undefined;
   Mapa: undefined;
+  Reponedores: undefined;
   Perfil: undefined;
 };
 
@@ -33,9 +40,15 @@ export type ReponedorTabParamList = {
   Perfil: undefined;
 };
 
+export type ReponedorStackParamList = {
+  ReponedorTabs: undefined;
+  RutaVisualizacion: { idTarea: number };
+};
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const SupervisorTab = createBottomTabNavigator<SupervisorTabParamList>();
 const ReponedorTab = createBottomTabNavigator<ReponedorTabParamList>();
+const ReponedorStack = createNativeStackNavigator<ReponedorStackParamList>();
 
 // Placeholder screens temporales
 const PlaceholderScreen = ({ title }: { title: string }) => (
@@ -86,6 +99,16 @@ function SupervisorTabs() {
           title: 'Mapa',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="map" size={size} color={color} />
+          ),
+        }}
+      />
+      <SupervisorTab.Screen
+        name="Reponedores"
+        component={SupervisorReponedoresScreen}
+        options={{
+          title: 'Reponedores',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people" size={size} color={color} />
           ),
         }}
       />
@@ -167,6 +190,27 @@ function ReponedorTabs() {
   );
 }
 
+// Stack Navigator para Reponedor (incluye pantallas modales)
+function ReponedorStackNavigator() {
+  return (
+    <ReponedorStack.Navigator>
+      <ReponedorStack.Screen
+        name="ReponedorTabs"
+        component={ReponedorTabs}
+        options={{ headerShown: false }}
+      />
+      <ReponedorStack.Screen
+        name="RutaVisualizacion"
+        component={RutaVisualizacionScreen}
+        options={{
+          title: 'Ruta Optimizada',
+          headerBackTitle: 'Atrás',
+        }}
+      />
+    </ReponedorStack.Navigator>
+  );
+}
+
 export default function AppNavigator() {
   const { user, loading } = useAuth();
 
@@ -186,7 +230,7 @@ export default function AppNavigator() {
         ) : (typeof user.rol === 'string' ? user.rol.toLowerCase() : user.rol) === 'supervisor' || user.rol === 2 ? (
           <Stack.Screen name="Main" component={SupervisorTabs} />
         ) : (
-          <Stack.Screen name="Main" component={ReponedorTabs} />
+          <Stack.Screen name="Main" component={ReponedorStackNavigator} />
         )}
       </Stack.Navigator>
     </NavigationContainer>

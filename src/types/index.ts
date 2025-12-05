@@ -147,3 +147,41 @@ export interface CrearTareaData {
     cantidad: number;
   }[];
 }
+
+// Tipos para la respuesta de ruta visual moderna
+export interface CoordenadaRuta {
+  x: number;
+  y: number;
+  secuencia: number;
+}
+
+export interface PuntoVisitaDetalle {
+  orden: number;
+  id_punto?: number;
+  producto?: string;
+  nombre_producto?: string;
+  cantidad?: number;
+  mueble?: string;
+  nombre_mueble?: string;
+  estanteria: number;
+  nivel: number;
+  x_acceso?: number;
+  y_acceso?: number;
+  coordenada_llegada?: {
+    x: number;
+    y: number;
+  };
+}
+
+export interface RutaVisualResponse {
+  id_ruta: number;
+  reponedor?: string;
+  fecha_creacion?: string;
+  algoritmo_usado?: string;
+  distancia_total: number;
+  tiempo_estimado_min?: number;
+  tiempo_estimado_minutos?: number;
+  coordenadas_ruta: CoordenadaRuta[];
+  puntos_visita: PuntoVisitaDetalle[];
+}
+

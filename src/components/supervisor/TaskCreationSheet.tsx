@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
@@ -28,6 +29,7 @@ interface TaskCreationSheetProps {
 interface SelectedPoint {
   punto: PuntoReposicion;
   cantidad: number;
+  ubicacion?: { x: number; y: number };
 }
 
 interface Reponedor {
@@ -49,10 +51,44 @@ export const TaskCreationSheet: React.FC<TaskCreationSheetProps> = ({
   const [reponedores, setReponedores] = useState<Reponedor[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingReponedores, setLoadingReponedores] = useState(true);
+  const [cantidadesPorProducto, setCantidadesPorProducto] = useState<Map<string, number>>(new Map());
+
+  // Memoizar agrupación de productos por mueble
+  const mueblesAgrupados = useMemo(() => {
+    const mueblesMap = new Map<string, typeof selectedPoints>();
+    selectedPoints.forEach(sp => {
+      const key = sp.ubicacion 
+        ? `${sp.ubicacion.x},${sp.ubicacion.y}`
+        : `${sp.punto.estanteria},${sp.punto.nivel}`;
+      if (!mueblesMap.has(key)) {
+        mueblesMap.set(key, []);
+      }
+      mueblesMap.get(key)!.push(sp);
+    });
+    return mueblesMap;
+  }, [selectedPoints]);
 
   useEffect(() => {
     if (visible) {
       cargarReponedores();
+      // Inicializar cantidades en 0 para cada producto único solo si no existen
+      setCantidadesPorProducto(prev => {
+        const inicial = new Map(prev);
+        mueblesAgrupados.forEach((puntos, muebleKey) => {
+          puntos.forEach(sp => {
+            if (sp.punto.producto) {
+              const productoKey = `${muebleKey}_${sp.punto.producto.nombre}`;
+              if (!inicial.has(productoKey)) {
+                inicial.set(productoKey, 0);
+              }
+            }
+          });
+        });
+        return inicial;
+      });
+    } else {
+      // Limpiar cuando se cierra el modal
+      setCantidadesPorProducto(new Map());
     }
   }, [visible]);
 
@@ -69,20 +105,78 @@ export const TaskCreationSheet: React.FC<TaskCreationSheetProps> = ({
     }
   };
 
+  const handleCantidadProductoChange = (muebleKey: string, nombreProducto: string, cantidadTotal: number) => {
+    const productoKey = `${muebleKey}_${nombreProducto}`;
+    setCantidadesPorProducto(prev => {
+      const newMap = new Map(prev);
+      newMap.set(productoKey, cantidadTotal);
+      return newMap;
+    });
+
+    // Distribuir la cantidad solo entre los puntos que tienen este producto específico
+    const puntos = mueblesAgrupados.get(muebleKey);
+    if (puntos && puntos.length > 0) {
+      const puntosDelProducto = puntos.filter(sp => sp.punto.producto?.nombre === nombreProducto);
+      
+      if (puntosDelProducto.length > 0) {
+        const cantidadPorPunto = Math.floor(cantidadTotal / puntosDelProducto.length);
+        const resto = cantidadTotal % puntosDelProducto.length;
+        
+        puntosDelProducto.forEach((sp, index) => {
+          // Los primeros 'resto' puntos reciben 1 unidad extra
+          const cantidad = cantidadPorPunto + (index < resto ? 1 : 0);
+          onUpdateQuantity(sp.punto.id_punto, cantidad);
+        });
+
+        // Resetear a 0 los puntos que NO son de este producto
+        puntos.forEach(sp => {
+          if (sp.punto.producto?.nombre !== nombreProducto) {
+            // Mantener su cantidad actual si ya tiene una asignada
+            // No hacemos nada aquí para no sobrescribir otras cantidades
+          }
+        });
+      }
+    }
+  };
+
   const handleCreateTask = async () => {
-    if (selectedPoints.length === 0) {
-      Alert.alert('Error', 'Debes seleccionar al menos un punto de reposición');
+    // Validación 1: Al menos un producto debe tener cantidad > 0
+    const productosConCantidad = Array.from(cantidadesPorProducto.entries()).filter(([_, cant]) => cant > 0);
+    
+    if (productosConCantidad.length === 0) {
+      Alert.alert('Error', 'Debes ingresar al menos una cantidad para algún producto');
       return;
     }
 
+    // Validación 2: Confirmar si no hay reponedor
+    if (reponedorSeleccionado === 'sin_asignar') {
+      Alert.alert(
+        'Confirmar',
+        'No has seleccionado un reponedor. La tarea quedará sin asignar. ¿Continuar?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Continuar', onPress: () => ejecutarCreacionTarea() },
+        ]
+      );
+      return;
+    }
+
+    ejecutarCreacionTarea();
+  };
+
+  const ejecutarCreacionTarea = async () => {
     try {
       setLoading(true);
+      
+      // Filtrar solo los puntos con cantidad > 0
+      const puntosParaEnviar = selectedPoints.filter(sp => sp.cantidad > 0);
+      
       await tareaService.crearTarea({
         id_reponedor: reponedorSeleccionado !== 'sin_asignar' 
           ? parseInt(reponedorSeleccionado) 
           : null,
-        estado_id: reponedorSeleccionado !== 'sin_asignar' ? 1 : 5, // 1: pendiente, 5: sin asignar
-        puntos: selectedPoints.map(sp => ({
+        estado_id: reponedorSeleccionado !== 'sin_asignar' ? 1 : 5,
+        puntos: puntosParaEnviar.map(sp => ({
           id_punto: sp.punto.id_punto,
           cantidad: sp.cantidad,
         })),
@@ -125,7 +219,10 @@ export const TaskCreationSheet: React.FC<TaskCreationSheetProps> = ({
         <View style={styles.modalContent}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Crear Tarea de Reposición</Text>
+            <View style={styles.headerTitle}>
+              <Ionicons name="create" size={24} color="#10B981" />
+              <Text style={styles.title}>Crear Tarea de Reposición</Text>
+            </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#6B7280" />
             </TouchableOpacity>
@@ -133,74 +230,145 @@ export const TaskCreationSheet: React.FC<TaskCreationSheetProps> = ({
 
           {/* Content */}
           <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {/* Puntos Seleccionados */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                Puntos Seleccionados ({selectedPoints.length})
+            {/* Banner informativo */}
+            <View style={styles.infoBanner}>
+              <Ionicons name="information-circle" size={20} color="#3B82F6" />
+              <Text style={styles.infoBannerText}>
+                Ingresa la cantidad total por producto. Se distribuirá automáticamente.
               </Text>
+            </View>
+
+            {/* Muebles Seleccionados */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="cube" size={20} color="#3B82F6" />
+                <Text style={styles.sectionTitle}>
+                  Muebles Seleccionados ({mueblesAgrupados.size})
+                </Text>
+              </View>
               
               {selectedPoints.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Ionicons name="cube-outline" size={48} color="#D1D5DB" />
                   <Text style={styles.emptyText}>
-                    No hay puntos seleccionados
+                    No hay muebles seleccionados
                   </Text>
                 </View>
               ) : (
-                <View style={styles.pointsList}>
-                  {selectedPoints.map((sp, index) => (
-                    <View key={sp.punto.id_punto} style={styles.pointCard}>
-                      <View style={styles.pointHeader}>
-                        <View style={styles.pointInfo}>
-                          <Text style={styles.pointNumber}>#{index + 1}</Text>
-                          <View>
-                            <Text style={styles.pointLocation}>
-                              Estantería {sp.punto.estanteria}, Nivel {sp.punto.nivel}
-                            </Text>
-                            {sp.punto.producto && (
-                              <Text style={styles.pointProduct}>
-                                {sp.punto.producto.nombre}
+                <FlatList
+                  data={Array.from(mueblesAgrupados.entries())}
+                  keyExtractor={([ubicacion]) => ubicacion}
+                  renderItem={({ item: [ubicacion, puntos] }) => {
+                    const [x, y] = ubicacion.split(',');
+                    
+                    // Agrupar productos únicos por nombre con sus puntos (con fallback)
+                    const productosPorNombre = new Map<string, typeof puntos>();
+                    puntos.forEach(sp => {
+                      if (sp?.punto?.producto?.nombre) {
+                        const nombre = sp.punto.producto.nombre;
+                        if (!productosPorNombre.has(nombre)) {
+                          productosPorNombre.set(nombre, []);
+                        }
+                        productosPorNombre.get(nombre)!.push(sp);
+                      }
+                    });
+
+                    // Si no hay productos válidos, no renderizar este mueble
+                    if (productosPorNombre.size === 0) return null;
+
+                    return (
+                      <View style={styles.muebleCard}>
+                        {/* Header del Mueble */}
+                        <View style={styles.muebleHeader}>
+                          <View style={styles.muebleHeaderLeft}>
+                            <Ionicons name="filing" size={24} color="#10B981" />
+                            <View style={styles.muebleHeaderInfo}>
+                              <Text style={styles.muebleTitle}>
+                                Mueble ({x}, {y})
                               </Text>
-                            )}
+                              <Text style={styles.muebleSubtitle}>
+                                {Array.from(productosPorNombre.keys()).join(', ')}
+                              </Text>
+                            </View>
                           </View>
                         </View>
-                        <TouchableOpacity
-                          onPress={() => onRemovePoint(sp.punto.id_punto)}
-                          style={styles.removeButton}
-                        >
-                          <Ionicons name="trash-outline" size={20} color="#EF4444" />
-                        </TouchableOpacity>
-                      </View>
 
-                      {/* Cantidad Input */}
-                      <View style={styles.quantityContainer}>
-                        <Text style={styles.quantityLabel}>Cantidad:</Text>
-                        <TextInput
-                          style={styles.quantityInput}
-                          value={sp.cantidad.toString()}
-                          onChangeText={(text) => {
-                            const num = parseInt(text) || 1;
-                            onUpdateQuantity(sp.punto.id_punto, num);
-                          }}
-                          keyboardType="numeric"
-                          maxLength={4}
-                        />
-                        {sp.punto.producto && (
-                          <Text style={styles.unit}>
-                            {sp.punto.producto.unidad_tipo}
-                          </Text>
-                        )}
+                        {/* Lista de productos con inputs individuales */}
+                        {Array.from(productosPorNombre.entries()).map(([nombreProducto, puntosProducto]) => {
+                          const productoKey = `${ubicacion}_${nombreProducto}`;
+                          const cantidadTotal = cantidadesPorProducto.get(productoKey) || 0;
+                          
+                          return (
+                            <View key={productoKey} style={styles.productoSection}>
+                              {/* Info del Producto */}
+                              <View style={styles.productoHeader}>
+                                <Ionicons name="cube" size={20} color="#059669" />
+                                <View style={styles.productoHeaderInfo}>
+                                  <Text style={styles.productoNombre}>{nombreProducto}</Text>
+                                  <Text style={styles.productoPuntos}>
+                                    {puntosProducto.length} ubicaciones
+                                  </Text>
+                                </View>
+                              </View>
+
+                              {/* Input de cantidad para este producto */}
+                              <View style={styles.cantidadInputContainer}>
+                                <View style={styles.cantidadInputHeader}>
+                                  <Ionicons name="calculator" size={16} color="#10B981" />
+                                  <Text style={styles.cantidadInputLabel}>
+                                    Cantidad total:
+                                  </Text>
+                                </View>
+                                <TextInput
+                                  style={[
+                                    styles.cantidadInput,
+                                    cantidadTotal <= 0 && styles.cantidadInputError
+                                  ]}
+                                  value={cantidadTotal === 0 ? '' : cantidadTotal.toString()}
+                                  onChangeText={(text) => {
+                                    if (text === '') {
+                                      handleCantidadProductoChange(ubicacion, nombreProducto, 0);
+                                    } else {
+                                      const num = parseInt(text);
+                                      if (!isNaN(num) && num >= 0) {
+                                        handleCantidadProductoChange(ubicacion, nombreProducto, num);
+                                      }
+                                    }
+                                  }}
+                                  keyboardType="numeric"
+                                  placeholder="Ej: 100"
+                                  placeholderTextColor="#9CA3AF"
+                                />
+                                {cantidadTotal > 0 && (
+                                  <Text style={styles.distribucionInfo}>
+                                    ✓ ~{Math.floor(cantidadTotal / puntosProducto.length)} unidades por ubicación
+                                  </Text>
+                                )}
+                              </View>
+                            </View>
+                          );
+                        })}
                       </View>
-                    </View>
-                  ))}
-                </View>
+                    );
+                  }}
+                  ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+                  contentContainerStyle={{ paddingVertical: 8 }}
+                  initialNumToRender={3}
+                  maxToRenderPerBatch={5}
+                  windowSize={5}
+                  removeClippedSubviews={true}
+                  scrollEnabled={false}
+                />
               )}
             </View>
 
             {/* Asignar Reponedor */}
             {selectedPoints.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Asignar a Reponedor</Text>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="person" size={20} color="#3B82F6" />
+                  <Text style={styles.sectionTitle}>Asignar a Reponedor</Text>
+                </View>
                 
                 {loadingReponedores ? (
                   <View style={styles.loadingContainer}>
@@ -208,54 +376,99 @@ export const TaskCreationSheet: React.FC<TaskCreationSheetProps> = ({
                     <Text style={styles.loadingText}>Cargando reponedores...</Text>
                   </View>
                 ) : (
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={reponedorSeleccionado}
-                      onValueChange={(value) => setReponedorSeleccionado(value)}
-                      style={styles.picker}
-                    >
-                      <Picker.Item label="Sin asignar" value="sin_asignar" />
-                      {reponedores.map((rep) => (
-                        <Picker.Item
-                          key={rep.id_usuario}
-                          label={`${rep.nombre} (${rep.correo})`}
-                          value={rep.id_usuario.toString()}
+                  <>
+                    <Text style={styles.helperText}>
+                      Selecciona quién ejecutará esta tarea:
+                    </Text>
+                    <View style={styles.pickerContainer}>
+                      <Picker
+                        selectedValue={reponedorSeleccionado}
+                        onValueChange={(value) => setReponedorSeleccionado(value)}
+                        style={styles.picker}
+                      >
+                        <Picker.Item 
+                          label="⚠️ Sin asignar (asignar después)" 
+                          value="sin_asignar" 
                         />
-                      ))}
-                    </Picker>
-                  </View>
+                        {reponedores.map((rep) => (
+                          <Picker.Item
+                            key={rep.id_usuario}
+                            label={`👤 ${rep.nombre} - ${rep.correo}`}
+                            value={rep.id_usuario.toString()}
+                          />
+                        ))}
+                      </Picker>
+                    </View>
+                    {reponedorSeleccionado === 'sin_asignar' && (
+                      <View style={styles.warningBox}>
+                        <Ionicons name="alert-circle" size={16} color="#F59E0B" />
+                        <Text style={styles.warningText}>
+                          La tarea quedará sin asignar hasta que un supervisor la asigne manualmente
+                        </Text>
+                      </View>
+                    )}
+                  </>
                 )}
+              </View>
+            )}
+
+            {/* Resumen */}
+            {selectedPoints.length > 0 && (
+              <View style={styles.summarySection}>
+                <View style={styles.summaryHeader}>
+                  <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                  <Text style={styles.summaryTitle}>Resumen de la Tarea</Text>
+                </View>
+                <View style={styles.summaryContent}>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Tipos de productos:</Text>
+                    <Text style={styles.summaryValue}>{cantidadesPorProducto.size}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Cantidad total:</Text>
+                    <Text style={styles.summaryValue}>
+                      {Array.from(cantidadesPorProducto.values()).reduce((sum, cant) => sum + cant, 0)} unidades
+                    </Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Asignado a:</Text>
+                    <Text style={[styles.summaryValue, reponedorSeleccionado === 'sin_asignar' && styles.summaryValueWarning]}>
+                      {reponedorSeleccionado === 'sin_asignar' 
+                        ? 'Sin asignar'
+                        : reponedores.find(r => r.id_usuario.toString() === reponedorSeleccionado)?.nombre || 'Desconocido'
+                      }
+                    </Text>
+                  </View>
+                </View>
               </View>
             )}
           </ScrollView>
 
-          {/* Footer - Botones de acción */}
-          {selectedPoints.length > 0 && (
-            <View style={styles.footer}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={onClose}
-                disabled={loading}
-              >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.createButton, loading && styles.createButtonDisabled]}
-                onPress={handleCreateTask}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                    <Text style={styles.createButtonText}>Crear Tarea</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
+          {/* Footer */}
+          <View style={styles.footer}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={onClose}
+              disabled={loading}
+            >
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.createButton, loading && styles.createButtonDisabled]}
+              onPress={handleCreateTask}
+              disabled={loading || selectedPoints.length === 0}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                  <Text style={styles.createButtonText}>Crear Tarea</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -269,26 +482,29 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
+    height: '85%',
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '85%',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  headerTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#111827',
   },
@@ -297,21 +513,41 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flex: 1,
+    padding: 20,
+  },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    marginBottom: 20,
+  },
+  infoBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1E40AF',
   },
   section: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#374151',
-    marginBottom: 12,
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 40,
+    padding: 40,
   },
   emptyText: {
     fontSize: 14,
@@ -319,69 +555,133 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   pointsList: {
-    gap: 12,
+    gap: 16,
   },
-  pointCard: {
-    backgroundColor: '#F9FAFB',
+  muebleCard: {
     borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderWidth: 2,
+    borderColor: '#10B981',
+    backgroundColor: '#F0FDF4',
+    overflow: 'hidden',
   },
-  pointHeader: {
+  muebleHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#D1FAE5',
+    borderBottomWidth: 1,
+    borderBottomColor: '#10B981',
   },
-  pointInfo: {
+  muebleHeaderLeft: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
     flex: 1,
   },
-  pointNumber: {
-    fontSize: 18,
+  muebleHeaderInfo: {
+    flex: 1,
+  },
+  muebleTitle: {
+    fontSize: 16,
     fontWeight: '700',
-    color: '#3B82F6',
+    color: '#065F46',
   },
-  pointLocation: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+  muebleSubtitle: {
+    fontSize: 12,
+    color: '#059669',
+    marginTop: 4,
+    fontWeight: '500',
   },
-  pointProduct: {
+  productoSection: {
+    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  productoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  productoHeaderInfo: {
+    flex: 1,
+  },
+  productoNombre: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  productoPuntos: {
     fontSize: 12,
     color: '#6B7280',
     marginTop: 2,
   },
-  removeButton: {
-    padding: 4,
+  cantidadInputContainer: {
+    marginTop: 8,
   },
-  quantityContainer: {
+  cantidadInputHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
+    marginBottom: 8,
   },
-  quantityLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  quantityInput: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    width: 80,
-    fontSize: 16,
+  cantidadInputLabel: {
+    fontSize: 13,
     fontWeight: '600',
+    color: '#374151',
+  },
+  cantidadInput: {
+    height: 50,
+    borderWidth: 2,
+    borderColor: '#10B981',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    fontSize: 18,
+    fontWeight: '700',
     color: '#111827',
     backgroundColor: '#FFFFFF',
+    textAlign: 'center',
   },
-  unit: {
+  cantidadInputError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEE2E2',
+  },
+  distribucionInfo: {
+    fontSize: 12,
+    color: '#059669',
+    marginTop: 8,
+    textAlign: 'center',
+    fontWeight: '500',
+    fontStyle: 'italic',
+  },
+  productosListContainer: {
+    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  productosListTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  productoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  productoItemText: {
+    fontSize: 13,
+    color: '#374151',
+  },
+  helperText: {
     fontSize: 14,
     color: '#6B7280',
+    marginBottom: 8,
   },
   loadingContainer: {
     flexDirection: 'row',
@@ -402,6 +702,60 @@ const styles = StyleSheet.create({
   },
   picker: {
     height: 50,
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#92400E',
+  },
+  summarySection: {
+    padding: 20,
+    backgroundColor: '#F0FDF4',
+    borderTopWidth: 2,
+    borderTopColor: '#10B981',
+    borderRadius: 12,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#166534',
+  },
+  summaryContent: {
+    gap: 8,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: '#166534',
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#166534',
+  },
+  summaryValueWarning: {
+    color: '#D97706',
   },
   footer: {
     flexDirection: 'row',
