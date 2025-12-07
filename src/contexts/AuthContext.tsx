@@ -43,10 +43,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const profile = await authService.getProfile();
           setUser(profile);
           await AsyncStorage.setItem('user_info', JSON.stringify(profile));
-        } catch (error) {
-          // Si falla, limpiar sesión
-          console.error('Sesión inválida:', error);
-          await signOut();
+        } catch (error: any) {
+          // Si es error 401, la sesión expiró (es normal)
+          if (error?.response?.status === 401) {
+            console.log('ℹ️ Sesión expirada, limpiando datos...');
+          } else {
+            console.error('❌ Error validando sesión:', error);
+          }
+          // Limpiar sesión silenciosamente
+          await AsyncStorage.removeItem('user_info');
+          await AsyncStorage.removeItem('access_token');
+          await AsyncStorage.removeItem('refresh_token');
+          setUser(null);
         }
       }
     } catch (error) {

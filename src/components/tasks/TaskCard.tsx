@@ -192,37 +192,26 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             </Text>
           </View>
 
-          {/* Lista de productos */}
+          {/* Resumen de productos */}
           <View style={styles.productsContainer}>
             <View style={styles.productsHeader}>
               <Ionicons name="cube-outline" size={16} color="#1a1a1a" />
               <Text style={styles.productsTitle}>
-                Productos ({task.productos.length})
+                Total de productos
               </Text>
             </View>
-            {task.productos.map((product, index) => (
-              <View key={index} style={styles.productItem}>
-                <View style={styles.productInfo}>
-                  <Text style={styles.productName} numberOfLines={2}>
-                    {product.nombre}
-                  </Text>
-                  <View style={styles.productDetails}>
-                    <View style={styles.productDetail}>
-                      <Ionicons name="location-outline" size={12} color="#666" />
-                      <Text style={styles.productDetailText}>
-                        {product.ubicacion.estanteria} - N{product.ubicacion.nivel}
-                      </Text>
-                    </View>
-                    <View style={styles.productDetail}>
-                      <Ionicons name="apps-outline" size={12} color="#666" />
-                      <Text style={styles.productDetailText}>
-                        Cant: {product.cantidad}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
+            <View style={styles.productsSummary}>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>Puntos de reposición:</Text>
+                <Text style={styles.summaryValue}>{task.productos.length}</Text>
               </View>
-            ))}
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>Unidades totales:</Text>
+                <Text style={styles.summaryValue}>
+                  {task.productos.reduce((sum, p) => sum + p.cantidad, 0)}
+                </Text>
+              </View>
+            </View>
           </View>
 
           {/* Botones de acción */}
@@ -359,6 +348,22 @@ const styles = StyleSheet.create({
   },
   productsTitle: {
     fontSize: 14,
+    fontWeight: '600',
+    color: '#1a1a1a',
+  },
+  productsSummary: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    padding: 12,
+    gap: 8,
+  },
+  summaryLabel: {
+    fontSize: 13,
+    color: '#6b7280',
+    flex: 1,
+  },
+  summaryValue: {
+    fontSize: 15,
     fontWeight: '600',
     color: '#1a1a1a',
   },

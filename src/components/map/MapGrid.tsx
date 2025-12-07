@@ -176,6 +176,51 @@ export const MapGrid: React.FC<MapGridProps> = ({
               </Svg>
             )}
 
+            {/* Marcador del punto de inicio */}
+            {ruta && ruta.length > 0 && (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: ruta[0].y * CELL_SIZE + CELL_SIZE / 2 - 15,
+                  left: ruta[0].x * CELL_SIZE + CELL_SIZE / 2 - 15,
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  backgroundColor: '#10B981',
+                  borderWidth: 2,
+                  borderColor: '#FFFFFF',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 3,
+                  elevation: 5,
+                }}
+              >
+                <Text style={{ fontSize: 16 }}>🏠</Text>
+              </View>
+            )}
+
+            {/* Etiqueta "INICIO" debajo del marcador */}
+            {ruta && ruta.length > 0 && (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: ruta[0].y * CELL_SIZE + CELL_SIZE / 2 + 20,
+                  left: ruta[0].x * CELL_SIZE + CELL_SIZE / 2 - 25,
+                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderRadius: 4,
+                }}
+              >
+                <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#1F2937' }}>
+                  INICIO
+                </Text>
+              </View>
+            )}
+
             {/* Capa superpuesta para indicadores de muebles con productos */}
             {mueblesPorUbicacion.size > 0 && (
               <View

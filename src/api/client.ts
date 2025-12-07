@@ -5,7 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // IMPORTANTE: Cambiar esta URL según tu configuración
 // Para emulador Android: usar 10.0.2.2
 // Para dispositivo físico: usar tu IP local (192.168.1.92)
-const API_URL = 'http://10.0.2.2:8000'; // Para emulador Android
+// Para producción: usar la URL de Azure
+const API_URL = 'https://poe-backend-app.salmonforest-f5212699.canadacentral.azurecontainerapps.io';
 
 class ApiClient {
   private axiosInstance: AxiosInstance;

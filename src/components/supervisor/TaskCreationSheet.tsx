@@ -192,7 +192,6 @@ export const TaskCreationSheet: React.FC<TaskCreationSheetProps> = ({
             text: 'OK',
             onPress: () => {
               onTaskCreated();
-              onClose();
             },
           },
         ]

@@ -24,7 +24,7 @@ export const tareaService = {
 
   // Crear una nueva tarea (supervisor)
   async crearTarea(data: CrearTareaData): Promise<Tarea> {
-    const response = await apiClient.getInstance().post<Tarea>('/tareas/', data);
+    const response = await apiClient.getInstance().post<Tarea>('/tareas', data);
     return response.data;
   },
 

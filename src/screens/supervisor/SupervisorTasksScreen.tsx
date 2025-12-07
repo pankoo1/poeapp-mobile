@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
+  FlatList,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
   Modal,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,7 +33,6 @@ interface FilterButton {
 
 export const SupervisorTasksScreen: React.FC = () => {
   const [tasks, setTasks] = useState<Tarea[]>([]);
-  const [filteredTasks, setFilteredTasks] = useState<Tarea[]>([]);
   const [metrics, setMetrics] = useState<TaskMetricsData>({
     total: 0,
     completed: 0,
@@ -43,26 +44,24 @@ export const SupervisorTasksScreen: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<string>('todas');
 
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     try {
       setLoading(true);
       
       // Supervisor puede ver todas las tareas
       const tasksData = await obtenerTareas();
+      
+      // Calcular métricas de forma eficiente en un solo recorrido
+      const metricsData = tasksData.reduce((acc, task) => {
+        acc.total++;
+        if (task.estado === 'completada') acc.completed++;
+        else if (task.estado === 'en progreso') acc.inProgress++;
+        else if (task.estado === 'pendiente') acc.pending++;
+        return acc;
+      }, { total: 0, completed: 0, inProgress: 0, pending: 0 });
+      
       setTasks(tasksData);
-      setFilteredTasks(tasksData);
-      
-      // Calcular métricas
-      const completed = tasksData.filter((t: Tarea) => t.estado === 'completada').length;
-      const inProgress = tasksData.filter((t: Tarea) => t.estado === 'en progreso').length;
-      const pending = tasksData.filter((t: Tarea) => t.estado === 'pendiente').length;
-      
-      setMetrics({
-        total: tasksData.length,
-        completed,
-        inProgress,
-        pending,
-      });
+      setMetrics(metricsData);
     } catch (error: any) {
       console.error('Error loading tasks:', error);
       Alert.alert('Error', 'No se pudieron cargar las tareas');
@@ -70,25 +69,22 @@ export const SupervisorTasksScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadTasks();
   }, []);
 
-  useEffect(() => {
-    // Aplicar filtro
-    let filtered = tasks;
-    
+  // Usar useMemo para evitar recalcular el filtro innecesariamente
+  const filteredTasks = useMemo(() => {
     if (selectedFilter === 'completadas') {
-      filtered = tasks.filter((t) => t.estado === 'completada');
+      return tasks.filter((t) => t.estado === 'completada');
     } else if (selectedFilter === 'en_progreso') {
-      filtered = tasks.filter((t) => t.estado === 'en progreso');
+      return tasks.filter((t) => t.estado === 'en progreso');
     } else if (selectedFilter === 'pendientes') {
-      filtered = tasks.filter((t) => t.estado === 'pendiente');
+      return tasks.filter((t) => t.estado === 'pendiente');
     }
-    
-    setFilteredTasks(filtered);
+    return tasks;
   }, [selectedFilter, tasks]);
 
   const onRefresh = () => {
@@ -100,168 +96,194 @@ export const SupervisorTasksScreen: React.FC = () => {
     setSelectedFilter(filter);
   };
 
-  const handleCreateTask = () => {
+  const handleCreateTask = useCallback(() => {
     setModalVisible(true);
-  };
+  }, []);
 
-  const handleTaskAction = (taskId: number, action: string) => {
+  const handleTaskAction = useCallback((taskId: number, action: string) => {
     Alert.alert('Acción', `${action} tarea #${taskId}`);
     // TODO: Implementar acciones (asignar, reasignar, cancelar)
-  };
+  }, []);
+
+  const renderTaskItem = useCallback(({ item }: { item: Tarea }) => (
+    <TaskCard task={item} />
+  ), []);
+
+  const ListHeaderComponent = useCallback(() => (
+    <>
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>Gestión de Tareas</Text>
+          <Text style={styles.subtitle}>Todas las tareas del sistema</Text>
+        </View>
+        <TouchableOpacity style={styles.createButton} onPress={handleCreateTask}>
+          <Ionicons name="add-circle" size={32} color="#3b82f6" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Métricas */}
+      <View style={styles.metricsContainer}>
+        <View style={styles.metricsGrid}>
+          <View style={[styles.metricCard, { backgroundColor: '#EFF6FF' }]}>
+            <Text style={[styles.metricValue, { color: '#3b82f6' }]}>{metrics.total}</Text>
+            <Text style={styles.metricLabel}>Total</Text>
+          </View>
+          <View style={[styles.metricCard, { backgroundColor: '#FEF3C7' }]}>
+            <Text style={[styles.metricValue, { color: '#f59e0b' }]}>{metrics.inProgress}</Text>
+            <Text style={styles.metricLabel}>En Progreso</Text>
+          </View>
+          <View style={[styles.metricCard, { backgroundColor: '#F0FDF4' }]}>
+            <Text style={[styles.metricValue, { color: '#10b981' }]}>{metrics.completed}</Text>
+            <Text style={styles.metricLabel}>Completadas</Text>
+          </View>
+          <View style={[styles.metricCard, { backgroundColor: '#EDE9FE' }]}>
+            <Text style={[styles.metricValue, { color: '#6366f1' }]}>{metrics.pending}</Text>
+            <Text style={styles.metricLabel}>Pendientes</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Filtros */}
+      <View style={styles.filtersContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              selectedFilter === 'todas' && styles.filterButtonActive,
+            ]}
+            onPress={() => handleFilterChange('todas')}
+          >
+            <Text
+              style={[
+                styles.filterButtonText,
+                selectedFilter === 'todas' && styles.filterButtonTextActive,
+              ]}
+            >
+              Todas
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              selectedFilter === 'en_progreso' && styles.filterButtonActive,
+            ]}
+            onPress={() => handleFilterChange('en_progreso')}
+          >
+            <Text
+              style={[
+                styles.filterButtonText,
+                selectedFilter === 'en_progreso' && styles.filterButtonTextActive,
+              ]}
+            >
+              En Progreso
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              selectedFilter === 'pendientes' && styles.filterButtonActive,
+            ]}
+            onPress={() => handleFilterChange('pendientes')}
+          >
+            <Text
+              style={[
+                styles.filterButtonText,
+                selectedFilter === 'pendientes' && styles.filterButtonTextActive,
+              ]}
+            >
+              Pendientes
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              selectedFilter === 'completadas' && styles.filterButtonActive,
+            ]}
+            onPress={() => handleFilterChange('completadas')}
+          >
+            <Text
+              style={[
+                styles.filterButtonText,
+                selectedFilter === 'completadas' && styles.filterButtonTextActive,
+              ]}
+            >
+              Completadas
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+
+      {/* Header de lista de tareas */}
+      <View style={styles.tasksContainer}>
+        <View style={styles.tasksHeader}>
+          <Text style={styles.tasksTitle}>
+            {selectedFilter === 'todas' ? 'Todas las Tareas' :
+             selectedFilter === 'completadas' ? 'Tareas Completadas' :
+             selectedFilter === 'en_progreso' ? 'En Progreso' :
+             'Tareas Pendientes'}
+          </Text>
+          <Text style={styles.tasksCount}>{filteredTasks.length}</Text>
+        </View>
+      </View>
+    </>
+  ), [metrics, selectedFilter, filteredTasks.length, handleFilterChange, handleCreateTask]);
+
+  const ListEmptyComponent = useCallback(() => (
+    <View style={styles.emptyState}>
+      <Ionicons name="file-tray-outline" size={64} color="#d1d5db" />
+      <Text style={styles.emptyStateText}>
+        {selectedFilter === 'todas'
+          ? 'No hay tareas registradas'
+          : `No hay tareas ${selectedFilter.replace('_', ' ')}`}
+      </Text>
+    </View>
+  ), [selectedFilter]);
+
+  const ListFooterComponent = useCallback(() => (
+    <View style={styles.tipCard}>
+      <View style={styles.tipHeader}>
+        <Ionicons name="bulb" size={20} color="#f59e0b" />
+        <Text style={styles.tipTitle}>Consejo</Text>
+      </View>
+      <Text style={styles.tipText}>
+        Asigna tareas de forma equitativa entre los reponedores para optimizar el trabajo.
+      </Text>
+    </View>
+  ), []);
+
+  const keyExtractor = useCallback((item: Tarea) => item.id_tarea.toString(), []);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color="#3b82f6" />
+          <Text style={{ marginTop: 10, color: '#6B7280' }}>Cargando tareas...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView
-        style={styles.scrollView}
+    <SafeAreaView style={styles.container}>
+      <FlatList
+        data={filteredTasks}
+        renderItem={renderTaskItem}
+        keyExtractor={keyExtractor}
+        ListHeaderComponent={ListHeaderComponent}
+        ListEmptyComponent={ListEmptyComponent}
+        ListFooterComponent={ListFooterComponent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#007AFF" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Gestión de Tareas</Text>
-            <Text style={styles.subtitle}>Todas las tareas del sistema</Text>
-          </View>
-          <TouchableOpacity style={styles.createButton} onPress={handleCreateTask}>
-            <Ionicons name="add-circle" size={32} color="#3b82f6" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Métricas */}
-        <View style={styles.metricsContainer}>
-          <View style={styles.metricsGrid}>
-            <View style={[styles.metricCard, { backgroundColor: '#EFF6FF' }]}>
-              <Text style={[styles.metricValue, { color: '#3b82f6' }]}>{metrics.total}</Text>
-              <Text style={styles.metricLabel}>Total</Text>
-            </View>
-            <View style={[styles.metricCard, { backgroundColor: '#FEF3C7' }]}>
-              <Text style={[styles.metricValue, { color: '#f59e0b' }]}>{metrics.inProgress}</Text>
-              <Text style={styles.metricLabel}>En Progreso</Text>
-            </View>
-            <View style={[styles.metricCard, { backgroundColor: '#F0FDF4' }]}>
-              <Text style={[styles.metricValue, { color: '#10b981' }]}>{metrics.completed}</Text>
-              <Text style={styles.metricLabel}>Completadas</Text>
-            </View>
-            <View style={[styles.metricCard, { backgroundColor: '#EDE9FE' }]}>
-              <Text style={[styles.metricValue, { color: '#6366f1' }]}>{metrics.pending}</Text>
-              <Text style={styles.metricLabel}>Pendientes</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Filtros */}
-        <View style={styles.filtersContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                selectedFilter === 'todas' && styles.filterButtonActive,
-              ]}
-              onPress={() => handleFilterChange('todas')}
-            >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  selectedFilter === 'todas' && styles.filterButtonTextActive,
-                ]}
-              >
-                Todas
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                selectedFilter === 'en_progreso' && styles.filterButtonActive,
-              ]}
-              onPress={() => handleFilterChange('en_progreso')}
-            >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  selectedFilter === 'en_progreso' && styles.filterButtonTextActive,
-                ]}
-              >
-                En Progreso
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                selectedFilter === 'pendientes' && styles.filterButtonActive,
-              ]}
-              onPress={() => handleFilterChange('pendientes')}
-            >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  selectedFilter === 'pendientes' && styles.filterButtonTextActive,
-                ]}
-              >
-                Pendientes
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                selectedFilter === 'completadas' && styles.filterButtonActive,
-              ]}
-              onPress={() => handleFilterChange('completadas')}
-            >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  selectedFilter === 'completadas' && styles.filterButtonTextActive,
-                ]}
-              >
-                Completadas
-              </Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-
-        {/* Lista de tareas */}
-        <View style={styles.tasksContainer}>
-          <View style={styles.tasksHeader}>
-            <Text style={styles.tasksTitle}>
-              {selectedFilter === 'todas' ? 'Todas las Tareas' :
-               selectedFilter === 'completadas' ? 'Tareas Completadas' :
-               selectedFilter === 'en_progreso' ? 'En Progreso' :
-               'Tareas Pendientes'}
-            </Text>
-            <Text style={styles.tasksCount}>{filteredTasks.length}</Text>
-          </View>
-
-          {filteredTasks.length > 0 ? (
-            filteredTasks.map((task) => (
-              <TaskCard
-                key={task.id_tarea}
-                task={task}
-              />
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Ionicons name="file-tray-outline" size={64} color="#d1d5db" />
-              <Text style={styles.emptyStateText}>
-                {selectedFilter === 'todas'
-                  ? 'No hay tareas registradas'
-                  : `No hay tareas ${selectedFilter.replace('_', ' ')}`}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Consejo */}
-        <View style={styles.tipCard}>
-          <View style={styles.tipHeader}>
-            <Ionicons name="bulb" size={20} color="#f59e0b" />
-            <Text style={styles.tipTitle}>Consejo</Text>
-          </View>
-          <Text style={styles.tipText}>
-            Asigna tareas de forma equitativa entre los reponedores para optimizar el trabajo.
-          </Text>
-        </View>
-      </ScrollView>
+        contentContainerStyle={styles.flatListContent}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={10}
+        windowSize={10}
+      />
 
       {/* Modal para crear tarea */}
       <Modal
@@ -301,8 +323,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  scrollView: {
-    flex: 1,
+  flatListContent: {
+    flexGrow: 1,
   },
   header: {
     flexDirection: 'row',

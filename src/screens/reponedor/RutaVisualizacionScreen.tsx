@@ -168,7 +168,7 @@ export const RutaVisualizacionScreen: React.FC<RutaVisualizacionScreenProps> = (
             height={mapaAlmacen.mapa.alto}
             ubicaciones={mapaAlmacen.ubicaciones}
             ruta={ruta.coordenadas_ruta.map(c => ({ x: c.x, y: c.y }))}
-            selectedPoints={ruta.puntos_visita.map(p => p.id_punto)}
+            selectedPoints={ruta.puntos_visita.map(p => p.id_punto).filter((id): id is number => id !== undefined)}
             showIndividualPoints={true}
           />
         )}
@@ -231,6 +231,11 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#6B7280',
+  },
+  loadingSubtext: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#9CA3AF',
   },
   emptyContainer: {
     flex: 1,

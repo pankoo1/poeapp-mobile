@@ -10,11 +10,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MapGrid } from '../../components/map';
 import { obtenerMapaSupervisor } from '../../api/mapaService';
-import { TaskCreationSheet } from '../../components/supervisor/TaskCreationSheet';
 import type { MapaResponse, PuntoReposicion, UbicacionFisica } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
+import type { SupervisorStackParamList } from '../../navigation/AppNavigator';
 
 interface SelectedPoint {
   punto: PuntoReposicion;
@@ -26,14 +28,16 @@ interface SelectedMueble {
   puntosDisponibles: PuntoReposicion[];
 }
 
+type SupervisorMapNavigationProp = NativeStackNavigationProp<SupervisorStackParamList, 'SupervisorTabs'>;
+
 export const SupervisorMapScreen: React.FC = () => {
   const { user } = useAuth();
+  const navigation = useNavigation<SupervisorMapNavigationProp>();
   const [warehouseMap, setWarehouseMap] = useState<MapaResponse | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedPoints, setSelectedPoints] = useState<SelectedPoint[]>([]);
   const [selectedMuebles, setSelectedMuebles] = useState<SelectedMueble[]>([]);
-  const [sheetVisible, setSheetVisible] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
 
   const loadMap = async () => {
@@ -164,24 +168,17 @@ export const SupervisorMapScreen: React.FC = () => {
     console.log('⚠️ togglePointSelection llamado (deprecated)');
   };
 
-  const handleUpdateQuantity = (pointId: number, quantity: number) => {
-    setSelectedPoints(prev =>
-      prev.map(sp =>
-        sp.punto.id_punto === pointId ? { ...sp, cantidad: quantity } : sp
-      )
-    );
-  };
 
-  const handleRemovePoint = (pointId: number) => {
-    setSelectedPoints(prev => prev.filter(sp => sp.punto.id_punto !== pointId));
-  };
 
-  const handleTaskCreated = () => {
-    setSelectedPoints([]);
-    setSelectedMuebles([]);
-    setSelectionMode(false);
-    loadMap(); // Recargar mapa
-  };
+  // Función para refrescar el mapa cuando se regresa de crear tarea
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Recargar el mapa cuando la pantalla obtiene el foco
+      loadMap();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   const toggleSelectionMode = () => {
     console.log('🔀 Toggle modo selección:', {
@@ -226,7 +223,16 @@ export const SupervisorMapScreen: React.FC = () => {
       Alert.alert('Aviso', 'Debes seleccionar al menos un mueble con productos');
       return;
     }
-    setSheetVisible(true);
+    
+    // Navegar a la pantalla de creación de tareas
+    navigation.navigate('CreateTask', {
+      selectedPoints: selectedPoints,
+    });
+    
+    // Limpiar selección después de navegar
+    setSelectedPoints([]);
+    setSelectedMuebles([]);
+    setSelectionMode(false);
   };
 
   const hasWarehouseData = (warehouseMap?.ubicaciones?.length || 0) > 0;
@@ -320,16 +326,6 @@ export const SupervisorMapScreen: React.FC = () => {
           </Text>
         </View>
       </ScrollView>
-
-      {/* Modal para crear tarea */}
-      <TaskCreationSheet
-        visible={sheetVisible}
-        onClose={() => setSheetVisible(false)}
-        selectedPoints={selectedPoints}
-        onTaskCreated={handleTaskCreated}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemovePoint={handleRemovePoint}
-      />
     </SafeAreaView>
   );
 };
